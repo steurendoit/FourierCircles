@@ -6,13 +6,23 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.view.SurfaceView;
 
+import com.steurendo.fouriercircles.types.RotationDude;
+import com.steurendo.fouriercircles.types.Vector2f;
+
 public class GameView extends SurfaceView implements Runnable
 {
     private Thread thread;
-    private boolean isPaused;
     private Paint paint;
+    private Model model;
 
-    public GameView(Context context)
+    //GAME PART
+    private boolean isPaused;
+    private Vector2f[] pathPoints;
+    private int indexPoint;
+    private float timeSlider;
+    private boolean circlesVisible;
+
+    public GameView(Context context, Model model)
     {
         super(context);
 
@@ -20,6 +30,9 @@ public class GameView extends SurfaceView implements Runnable
         paint = new Paint();
         paint.setTextSize(10);
         paint.setColor(Color.GREEN);
+        this.model = model;
+        reinit();
+        circlesVisible = true;
     }
 
     @Override
@@ -33,16 +46,64 @@ public class GameView extends SurfaceView implements Runnable
         }
     }
 
+    public void reinit()
+    {
+        model.scale((float)Math.pow(0.9f, 11));
+        isPaused = false;
+        pathPoints = new Vector2f[CommandBoard.PATH_POINTS_NUMBER];
+        initPathPoints();
+        indexPoint = 0;
+        timeSlider = 0;
+    }
+    private void initPathPoints()
+    {
+        float time;
+
+        time = 0;
+        for (int i = 0; i < CommandBoard.PATH_POINTS_NUMBER; i++)
+        {
+            model.evaluateAllAtTime(time);
+            pathPoints[i] = model.getPoint();
+            time += CommandBoard.ROTATION_SPEED;
+        }
+        model.evaluateAllAtTime(timeSlider);
+    }
+
     private void update()
     {
+        if (!isPaused)
+        {
+            timeSlider += CommandBoard.ROTATION_SPEED;
+            if (timeSlider == 1) timeSlider = 0;
+            indexPoint++;
+            if (indexPoint == CommandBoard.PATH_POINTS_NUMBER) indexPoint = 0;
+            model.evaluateAllAtTime(timeSlider);
+        }
     }
     private void draw()
     {
         if (getHolder().getSurface().isValid())
         {
             Canvas canvas = getHolder().lockCanvas();
+            int maxVisibility;
+            float visibility;
+            RotationDude[] dudes;
+            Vector2f p0;
+            float theta, per;
 
-            canvas.drawCircle(1000, 1000, 300, paint);
+            dudes = model.getRotations();
+            if (dudes.length == 0) return;
+
+            maxVisibility = (int)(CommandBoard.TRAIL_LENGTH * CommandBoard.PATH_POINTS_NUMBER);
+            for (int i = maxVisibility, j = indexPoint; i > 0; i--, j--)
+            {
+                visibility = (float)i / maxVisibility + CommandBoard.VISIBILITY_RANGE_MIN;
+                if (j < 0) j += CommandBoard.PATH_POINTS_NUMBER;
+                paint.setColor((int)(0xFF * visibility) * 0x000100);
+                canvas.drawLine(pathPoints[j].x, pathPoints[j].y,
+                                pathPoints[j - 1].x, pathPoints[j - 1].y,
+                                paint);
+            }
 
             getHolder().unlockCanvasAndPost(canvas);
         }
